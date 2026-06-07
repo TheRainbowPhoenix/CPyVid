@@ -1,17 +1,15 @@
-# Welcome to PythonExtra for ClassPad
+# CPyVid
 
-This is a simple starting point for creating Python programs for the ClassPad II (fx-CP400) using **PythonExtra**, a lightweight version of MicroPython built for calculators.
+A demo (slow) python video player for the classpad !
 
 
-## 🐍 What is Python?
+![Demo 1](.docs/CPVID1.png)
 
-Python is a popular programming language known for its simplicity and readability. It's widely used for teaching, scripting, automation, game development, and much more.
+![Demo 2](.docs/CPVID3.png)
 
-Here’s a simple Python example:
+A generator / converter is included inside `generator_DONT_COPY_THIS_TO_CALC`...
 
-```python
-print("Hello, world!")
-```
+
 
 If you're new to Python, no worries—this project is built to help you learn by doing.
 
