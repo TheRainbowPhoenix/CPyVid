@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GMPAK Explorer</title>
+  <style>
+    :root {
+      --bg: #f2efe6;
+      --ink: #181612;
+      --muted: #60584c;
+      --panel: rgba(255, 250, 242, 0.92);
+      --line: #d9c8a7;
+      --accent: #ab4b2a;
+      --accent-2: #205c79;
+      --danger: #962a2a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(171, 75, 42, 0.16), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(32, 92, 121, 0.12), transparent 34%),
+        linear-gradient(180deg, #faf7f0 0%, var(--bg) 100%);
+    }
+
+    main {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 24px 16px 36px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.7rem);
+      letter-spacing: 0.02em;
+    }
+
+    h2,
+    h3 {
+      margin: 0 0 12px;
+    }
+
+    .lede {
+      max-width: 82ch;
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 0.92fr 1.08fr;
+      align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 18px 44px rgba(56, 40, 18, 0.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .dropzone {
+      border: 2px dashed color-mix(in srgb, var(--accent) 62%, var(--line));
+      border-radius: 16px;
+      padding: 26px 16px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,250,242,0.98));
+      transition: transform 120ms ease, border-color 120ms ease;
+      cursor: pointer;
+    }
+
+    .dropzone.dragover {
+      transform: translateY(-2px);
+      border-color: var(--accent-2);
+    }
+
+    .dropzone strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1.28rem;
+    }
+
+    .controls,
+    .actions,
+    .facts {
+      display: grid;
+      gap: 12px;
+    }
+
+    .controls {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-top: 16px;
+    }
+
+    .actions {
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      margin-top: 16px;
+    }
+
+    .facts {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      margin-top: 16px;
+    }
+
+    .field label,
+    .small-label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .field input,
+    .field select,
+    button,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font: inherit;
+    }
+
+    .field input,
+    .field select,
+    button {
+      min-height: 44px;
+      padding: 10px 12px;
+      background: white;
+      color: var(--ink);
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .primary {
+      border: none;
+      color: white;
+      background: linear-gradient(180deg, #d96a39 0%, var(--accent) 100%);
+    }
+
+    .secondary {
+      border: none;
+      color: #163544;
+      background: linear-gradient(180deg, #e1edf4 0%, #d3e3ec 100%);
+    }
+
+    .danger {
+      border: none;
+      color: white;
+      background: linear-gradient(180deg, #c95d5d 0%, var(--danger) 100%);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 22px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .fact {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.74);
+    }
+
+    .fact span {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .entry-list {
+      display: grid;
+      gap: 8px;
+      max-height: 640px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .entry-button {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.74);
+      text-align: left;
+    }
+
+    .entry-button.active {
+      border-color: var(--accent-2);
+      background: linear-gradient(180deg, rgba(232, 242, 248, 0.96), rgba(214, 229, 237, 0.92));
+    }
+
+    .entry-top,
+    .entry-bottom {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .entry-bottom {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.84);
+      color: var(--muted);
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
+    .tag.modified {
+      border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+      color: var(--accent);
+    }
+
+    .preview-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 0.92fr 1.08fr;
+    }
+
+    .preview-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,0.72);
+    }
+
+    canvas {
+      width: 100%;
+      max-height: 360px;
+      border-radius: 10px;
+      background:
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+      background-size: 18px 18px;
+      background-position: 0 0, 9px 9px;
+      image-rendering: pixelated;
+    }
+
+    textarea {
+      min-height: 180px;
+      padding: 12px;
+      background: #fffdfa;
+      resize: vertical;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .mono {
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1080px) {
+      .layout,
+      .preview-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GMPAK Explorer</h1>
+    <p class="lede">
+      Drop a <code>.gmpak</code> container to inspect its table of contents, preview <code>VIDEO_GINT_IMAGE</code>
+      frames, edit text resources, swap payloads, and rebuild the pack in-browser. This page is meant to help with
+      both CPVid video packs and arbitrary custom GMPAK containers.
+    </p>
+
+    <div class="layout">
+      <div class="stack">
+        <section class="panel">
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <strong>Drop a GMPAK file to inspect it</strong>
+            <span>or click here to choose a local pack</span>
+          </div>
+          <input id="fileInput" type="file" accept=".gmpak,application/octet-stream" hidden>
+          <input id="replaceInput" type="file" hidden>
+          <input id="imageReplaceInput" type="file" accept="image/*" hidden>
+          <input id="addEntryInput" type="file" hidden>
+
+          <div class="actions">
+            <button id="downloadPackBtn" class="primary" disabled>Download Rebuilt GMPAK</button>
+            <button id="extractEntryBtn" class="secondary" disabled>Extract Selected Payload</button>
+            <button id="replaceEntryBtn" class="secondary" disabled>Replace Selected Payload</button>
+            <button id="removeEntryBtn" class="danger" disabled>Remove Selected Entry</button>
+          </div>
+
+          <div class="status" id="status">Pick a GMPAK to inspect.</div>
+
+          <div class="facts" id="facts"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Append Entry</h2>
+          <div class="controls">
+            <div class="field">
+              <label for="newEntryName">Entry Name</label>
+              <input id="newEntryName" value="RESOURCE" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="newEntryType">Entry Type</label>
+              <select id="newEntryType"></select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="addEntryBtn" class="secondary" disabled>Add Entry From File</button>
+          </div>
+          <p class="small">
+            For type <code>VIDEO_GINT_IMAGE</code>, appended files can be raw payload bytes, a generated fxconv Python
+            file, or the structured hex JSON exported by the other browser tool.
+          </p>
+        </section>
+
+        <section class="panel">
+          <h2>Contents</h2>
+          <div id="entryList" class="entry-list">
+            <div class="empty">No entries loaded yet.</div>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel">
+          <h2>Selected Entry</h2>
+          <div class="controls">
+            <div class="field">
+              <label for="entryNameInput">Name</label>
+              <input id="entryNameInput" spellcheck="false" disabled>
+            </div>
+            <div class="field">
+              <label for="entryTypeSelect">Type</label>
+              <select id="entryTypeSelect" disabled></select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="applyHeaderBtn" class="secondary" disabled>Apply Name / Type</button>
+            <button id="downloadJsonBtn" class="secondary" disabled>Download Hex JSON</button>
+            <button id="downloadPyBtn" class="secondary" disabled>Download Python</button>
+            <button id="downloadPngBtn" class="secondary" disabled>Download Preview PNG</button>
+            <button id="replacePngBtn" class="secondary" disabled>Replace GINT From Image</button>
+          </div>
+
+          <div class="facts" id="entryFacts"></div>
+
+          <div class="preview-grid" style="margin-top:16px">
+            <article class="preview-card">
+              <h3>Preview</h3>
+              <canvas id="previewCanvas"></canvas>
+            </article>
+            <article class="preview-card">
+              <h3>Container Notes</h3>
+              <textarea id="inspectorNotes" readonly></textarea>
+            </article>
+          </div>
+        </section>
+
+        <section id="textSection" class="panel hidden">
+          <h2>Text Resource</h2>
+          <textarea id="textEditor"></textarea>
+          <div class="actions">
+            <button id="saveTextBtn" class="primary">Save Text Payload</button>
+          </div>
+        </section>
+
+        <section id="gintSection" class="panel hidden">
+          <h2>GINT Resource</h2>
+          <div class="controls">
+            <div class="field">
+              <label for="gintFormatSelect">Image Replacement Format</label>
+              <select id="gintFormatSelect"></select>
+            </div>
+          </div>
+
+          <h3 class="small-label" style="margin-top:14px">Editable Hex JSON</h3>
+          <textarea id="gintJsonEditor"></textarea>
+          <div class="actions">
+            <button id="applyGintJsonBtn" class="primary">Apply Hex JSON</button>
+          </div>
+
+          <h3 class="small-label" style="margin-top:14px">Palette / Data Hexdump Preview</h3>
+          <textarea id="gintHexPreview" readonly></textarea>
+        </section>
+
+        <section id="binarySection" class="panel hidden">
+          <h2>Binary Payload</h2>
+          <textarea id="binaryHexPreview" readonly></textarea>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="./gmpak_explorer_app.mjs"></script>
+</body>
+</html>
