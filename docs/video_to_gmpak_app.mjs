@@ -1,5 +1,6 @@
 import { buildGmpakBlob } from "./gmpak_browser.mjs";
-import { convertImageDataToCg, decodeCgImage, toHexJson } from "./fxconv_cg.mjs";
+import { convertImageDataToCg, decodeCgImage, reduceImageDataColors, toHexJson } from "./fxconv_cg.mjs";
+import { convertImageDataToFx, decodeFxImage, isFxFormatName, toFxImageHexJson } from "./fxconv_fx.mjs";
 import { createBrowserFFmpeg, extractRgbaFrames, frameViewFromRaw } from "./video_pipeline_browser.mjs";
 
 const dropzone = document.getElementById("dropzone");
@@ -32,6 +33,7 @@ const state = {
 };
 
 function setStatus(message, isError = false) {
+  console.log(message);
   statusEl.textContent = message;
   statusEl.classList.toggle("error", isError);
 }
@@ -59,6 +61,10 @@ function currentSettings() {
     formatName: formatSelect.value,
     outputName: sanitizeName(outputNameInput.value.trim()),
   };
+}
+
+function ditherModeValue(setting) {
+  return setting === "Floyd-Steinberg" ? "floyd_steinberg" : "none";
 }
 
 function updateFacts(entries = []) {
@@ -154,14 +160,26 @@ async function buildGmpakFromVideo() {
 
     const extraction = await extractRgbaFrames(ffmpeg, state.inputFile, settings);
     const frames = [];
+    const jsColorReductionCount = settings.colorCount === "Original" ? null : Number(settings.colorCount);
+    const useJsColorReduction = jsColorReductionCount !== null
+      && Number.isFinite(jsColorReductionCount)
+      && jsColorReductionCount >= 1
+      && jsColorReductionCount <= 3;
+    const useFxFormat = isFxFormatName(settings.formatName);
 
     for (let index = 0; index < extraction.frameCount; index += 1) {
-      const view = frameViewFromRaw(extraction.rawFrames, index, extraction.width, extraction.height);
-      const converted = convertImageDataToCg(view, settings.formatName);
+      let view = frameViewFromRaw(extraction.rawFrames, index, extraction.width, extraction.height);
+      if (useJsColorReduction) {
+        view = reduceImageDataColors(view, jsColorReductionCount, ditherModeValue(settings.dither));
+      }
+
+      const converted = useFxFormat
+        ? convertImageDataToFx(view, settings.formatName)
+        : convertImageDataToCg(view, settings.formatName);
       frames.push(converted);
 
       if (index === 0) {
-        renderImageDataToCanvas(framePreview, decodeCgImage(converted));
+        renderImageDataToCanvas(framePreview, useFxFormat ? decodeFxImage(converted) : decodeCgImage(converted));
       }
 
       const progress = 40 + ((index + 1) / extraction.frameCount) * 45;
@@ -175,7 +193,7 @@ async function buildGmpakFromVideo() {
     const blob = buildGmpakBlob({ frames, fps: settings.fps });
     state.downloadBlob = URL.createObjectURL(blob);
 
-    const firstFrameJson = toHexJson(frames[0]);
+    const firstFrameJson = useFxFormat ? toFxImageHexJson(frames[0]) : toHexJson(frames[0]);
     state.manifest = {
       output_name: `${settings.outputName}.gmpak`,
       fps: settings.fps,
@@ -184,11 +202,13 @@ async function buildGmpakFromVideo() {
       height: extraction.height,
       format: frames[0].formatName,
       profile: firstFrameJson.profile,
-      first_frame_color_count: firstFrameJson.color_count,
-      first_frame_stride: firstFrameJson.stride,
+      first_frame_color_count: firstFrameJson.color_count ?? null,
+      first_frame_stride: firstFrameJson.stride ?? null,
+      first_frame_layer_count: firstFrameJson.layer_count ?? null,
       gmpak_bytes: blob.size,
       pre_fx_color_count: settings.colorCount,
       pre_fx_dither: settings.dither,
+      pre_fx_reduction_stage: extraction.usedFfmpegPalette ? "ffmpeg_palette" : (useJsColorReduction ? "js_quantizer" : "none"),
       visual_style: settings.visualStyle,
       ffmpeg_args: extraction.ffmpegArgs,
     };
@@ -201,7 +221,7 @@ async function buildGmpakFromVideo() {
       ["Format", frames[0].formatName],
       ["Pre-FX Colors", String(settings.colorCount)],
       ["GMPAK Size", `${blob.size.toLocaleString()} bytes`],
-      ["First Stride", String(firstFrameJson.stride)],
+      [useFxFormat ? "First Layers" : "First Stride", String(useFxFormat ? (firstFrameJson.layer_count ?? "n/a") : (firstFrameJson.stride ?? "n/a"))],
     ]);
 
     setProgress(100);

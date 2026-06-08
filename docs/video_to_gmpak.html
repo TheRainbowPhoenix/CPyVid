@@ -258,8 +258,8 @@
     <h1>Video to GMPAK</h1>
     <p class="lede">
       This page folds the whole pipeline into one browser workflow: trim and scale a video with
-      <code>ffmpeg.wasm</code>, turn frames into fxconv CG image payloads with <code>fxconv_cg.mjs</code>,
-      then pack everything into a final <code>VIDEO.gmpak</code>. The GMPAK builder is separate in
+      <code>ffmpeg.wasm</code>, turn frames into fxconv image payloads with <code>fxconv_cg.mjs</code> and
+      <code>fxconv_fx.mjs</code>, then pack everything into a final <code>VIDEO.gmpak</code>. The GMPAK builder is separate in
       <code>gmpak_browser.mjs</code> so you can reuse it later.
     </p>
 
@@ -277,17 +277,26 @@
             <input id="outputName" value="VIDEO" spellcheck="false">
           </div>
           <div class="field">
-            <label for="formatSelect">fxconv CG Format</label>
+            <label for="formatSelect">fxconv Format</label>
             <select id="formatSelect">
-              <option value="p4_rgb565">p4_rgb565</option>
-              <option value="p4_rgb565a">p4_rgb565a</option>
-              <option value="p8_rgb565">p8_rgb565</option>
-              <option value="p8_rgb565a">p8_rgb565a</option>
-              <option value="rgb565">rgb565</option>
-              <option value="rgb565a">rgb565a</option>
-              <option value="">auto</option>
-              <option value="p4">p4</option>
-              <option value="p8">p8</option>
+              <optgroup label="fx-CG 50">
+                <option value="p4_rgb565">p4_rgb565</option>
+                <option value="p4_rgb565a">p4_rgb565a</option>
+                <option value="p8_rgb565">p8_rgb565</option>
+                <option value="p8_rgb565a">p8_rgb565a</option>
+                <option value="rgb565">rgb565</option>
+                <option value="rgb565a">rgb565a</option>
+                <option value="">auto</option>
+                <option value="p4">p4</option>
+                <option value="p8">p8</option>
+              </optgroup>
+              <optgroup label="fx-9860G">
+                <option value="fx:auto">auto mono/gray</option>
+                <option value="mono">mono</option>
+                <option value="mono_alpha">mono_alpha</option>
+                <option value="gray">gray</option>
+                <option value="gray_alpha">gray_alpha</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">

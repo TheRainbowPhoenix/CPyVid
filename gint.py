@@ -821,6 +821,20 @@ IMAGE_P8_RGB565A = 4
 IMAGE_P4_RGB565 = 5
 IMAGE_P4_RGB565A = 6
 
+FX_IMAGE_MONO = 0
+FX_IMAGE_MONO_ALPHA = 1
+FX_IMAGE_GRAY = 2
+FX_IMAGE_GRAY_ALPHA = 3
+
+def _fx_layer_count(profile: int) -> int:
+    if profile == FX_IMAGE_MONO:
+        return 1
+    if profile in (FX_IMAGE_MONO_ALPHA, FX_IMAGE_GRAY):
+        return 2
+    if profile == FX_IMAGE_GRAY_ALPHA:
+        return 3
+    raise ValueError(f"Unknown fx image profile {profile}")
+
 class Image:
     """Represents a graphical image in VRAM"""
     def __init__(self, format: int, profile: int, color_count: int, width: int, height: int, 
@@ -839,14 +853,56 @@ class Image:
         surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         pixels = pygame.PixelArray(surface)
         
-        if self.profile == IMAGE_MONO:
-            # 1‑bpp: bit 0 = black, bit 1 = white
+        if self.format == IMAGE_MONO:
+            layer_count = _fx_layer_count(self.profile)
+            longwords_per_row = (self.width + 31) >> 5
+            plane_stride = 4 * longwords_per_row
+            layer_size = plane_stride * self.height
+            layers = [bytearray(layer_size) for _ in range(layer_count)]
+
+            cursor = 0
+            for longword in range(layer_size // 4):
+                for layer_index in range(layer_count):
+                    for i in range(4):
+                        layers[layer_index][4 * longword + i] = self.data[cursor]
+                        cursor += 1
+
+            def layer_bit(layer_index: int, x: int, y: int) -> int:
+                offset = 4 * y * longwords_per_row + (x >> 3)
+                return (layers[layer_index][offset] >> (7 - (x & 7))) & 1
+
             for y in range(self.height):
-                row = y * self.stride
                 for x in range(self.width):
-                    byte = self.data[row + (x >> 3)]
-                    bit  = (byte >> (7 - (x & 7))) & 1
-                    pixels[x, y] = (255,255,255) if bit else (0,0,0)
+                    if self.profile == FX_IMAGE_MONO:
+                        pixels[x, y] = (0, 0, 0) if layer_bit(0, x, y) else (255, 255, 255)
+                    elif self.profile == FX_IMAGE_MONO_ALPHA:
+                        if not layer_bit(0, x, y):
+                            continue
+                        pixels[x, y] = (0, 0, 0) if layer_bit(1, x, y) else (255, 255, 255)
+                    elif self.profile == FX_IMAGE_GRAY:
+                        light_plane = layer_bit(0, x, y)
+                        dark_plane = layer_bit(1, x, y)
+                        if light_plane and dark_plane:
+                            pixels[x, y] = (0, 0, 0)
+                        elif light_plane:
+                            pixels[x, y] = (170, 170, 170)
+                        elif dark_plane:
+                            pixels[x, y] = (85, 85, 85)
+                        else:
+                            pixels[x, y] = (255, 255, 255)
+                    elif self.profile == FX_IMAGE_GRAY_ALPHA:
+                        if not layer_bit(0, x, y):
+                            continue
+                        light_plane = layer_bit(1, x, y)
+                        dark_plane = layer_bit(2, x, y)
+                        if light_plane and dark_plane:
+                            pixels[x, y] = (0, 0, 0)
+                        elif light_plane:
+                            pixels[x, y] = (170, 170, 170)
+                        elif dark_plane:
+                            pixels[x, y] = (85, 85, 85)
+                        else:
+                            pixels[x, y] = (255, 255, 255)
         
         elif self.profile == IMAGE_RGB565:
             # Decode 16bpp direct color
@@ -964,6 +1020,11 @@ class Image:
 def image(profile: int, color_count: int, width: int, height: int, 
                 stride: int, data: bytearray, palette: bytearray) -> Image:
     return Image(IMAGE_RGB565, profile, color_count, width, height, stride, data, palette)
+
+def fximage(profile: int, width: int, height: int, data: bytes) -> Image:
+    layer_count = _fx_layer_count(profile)
+    stride = 4 * ((width + 31) >> 5) * layer_count
+    return Image(IMAGE_MONO, profile, 0, width, height, stride, data, b"")
 
 def image_rgb565(width: int, height: int, data: bytes) -> Image:
     """

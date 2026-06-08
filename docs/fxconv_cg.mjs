@@ -433,6 +433,113 @@ function quantizeAdaptive(rgbData, maxColors) {
   return { palette, colorToIndex };
 }
 
+function colorDistance(colorA, colorB) {
+  const a = splitColorInt(colorA);
+  const b = splitColorInt(colorB);
+  const dr = a.r - b.r;
+  const dg = a.g - b.g;
+  const db = a.b - b.b;
+  return (dr * dr) + (dg * dg) + (db * db);
+}
+
+function nearestPaletteColor(color, palette) {
+  let best = palette[0] ?? makeColorInt(0, 0, 0);
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const candidate of palette) {
+    const distance = colorDistance(color, candidate);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+
+  return best;
+}
+
+export function reduceImageDataColors(imageInput, maxColors, ditherMode = "none") {
+  const normalized = normalizeImageInput(imageInput);
+  const targetColors = Math.max(1, Math.min(256, Number(maxColors) || 256));
+  if (targetColors >= 256) {
+    return normalized;
+  }
+
+  const paletteInput = new Uint8Array(normalized.width * normalized.height * 3);
+  for (let i = 0, j = 0; i < normalized.data.length; i += 4, j += 3) {
+    paletteInput[j] = normalized.data[i];
+    paletteInput[j + 1] = normalized.data[i + 1];
+    paletteInput[j + 2] = normalized.data[i + 2];
+  }
+
+  const quantized = quantizeAdaptive(paletteInput, targetColors);
+  const palette = quantized.palette.length > 0 ? quantized.palette : [makeColorInt(0, 0, 0)];
+  const out = new Uint8ClampedArray(normalized.data);
+
+  if (ditherMode === "floyd_steinberg") {
+    const rgb = new Float32Array(paletteInput.length);
+    for (let i = 0; i < paletteInput.length; i += 1) {
+      rgb[i] = paletteInput[i];
+    }
+
+    for (let y = 0; y < normalized.height; y += 1) {
+      for (let x = 0; x < normalized.width; x += 1) {
+        const pixelIndex = y * normalized.width + x;
+        const rgbOffset = pixelIndex * 3;
+        const oldColor = makeColorInt(
+          clamp8(Math.round(rgb[rgbOffset])),
+          clamp8(Math.round(rgb[rgbOffset + 1])),
+          clamp8(Math.round(rgb[rgbOffset + 2]))
+        );
+        const newColor = nearestPaletteColor(oldColor, palette);
+        const { r: newR, g: newG, b: newB } = splitColorInt(newColor);
+        const oldR = rgb[rgbOffset];
+        const oldG = rgb[rgbOffset + 1];
+        const oldB = rgb[rgbOffset + 2];
+
+        out[pixelIndex * 4] = newR;
+        out[pixelIndex * 4 + 1] = newG;
+        out[pixelIndex * 4 + 2] = newB;
+
+        const errR = oldR - newR;
+        const errG = oldG - newG;
+        const errB = oldB - newB;
+
+        const diffuse = (nx, ny, factor) => {
+          if (nx < 0 || nx >= normalized.width || ny < 0 || ny >= normalized.height) {
+            return;
+          }
+          const offset = ((ny * normalized.width) + nx) * 3;
+          rgb[offset] += errR * factor;
+          rgb[offset + 1] += errG * factor;
+          rgb[offset + 2] += errB * factor;
+        };
+
+        diffuse(x + 1, y, 7 / 16);
+        diffuse(x - 1, y + 1, 3 / 16);
+        diffuse(x, y + 1, 5 / 16);
+        diffuse(x + 1, y + 1, 1 / 16);
+      }
+    }
+  } else {
+    for (let i = 0; i < normalized.data.length; i += 4) {
+      const mapped = nearestPaletteColor(
+        makeColorInt(normalized.data[i], normalized.data[i + 1], normalized.data[i + 2]),
+        palette
+      );
+      const { r, g, b } = splitColorInt(mapped);
+      out[i] = r;
+      out[i + 1] = g;
+      out[i + 2] = b;
+    }
+  }
+
+  return {
+    width: normalized.width,
+    height: normalized.height,
+    data: out,
+  };
+}
+
 function resolveFormatName(requestedName, hasAlpha) {
   if (requestedName === "" || requestedName === undefined || requestedName === null) {
     return hasAlpha ? "rgb565a" : "rgb565";

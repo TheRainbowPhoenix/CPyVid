@@ -4,6 +4,12 @@ import {
   toFxconvPy,
   toHexJson,
 } from "./fxconv_cg.mjs";
+import {
+  convertImageDataToFx,
+  decodeFxImage,
+  toFxImageHexJson,
+  toFxImagePy,
+} from "./fxconv_fx.mjs";
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -53,16 +59,29 @@ function renderImageDataToCanvas(canvas, imageDataLike) {
 }
 
 function updateMeta(converted) {
-  const json = toHexJson(converted);
-  const entries = [
-    ["Resolved Format", converted.formatName],
-    ["Profile", String(json.profile)],
-    ["Color Count", String(json.color_count)],
-    ["Size", `${json.width} x ${json.height}`],
-    ["Stride", String(json.stride)],
-    ["Data Bytes", String(json.data_hex.length / 2)],
-    ["Palette Bytes", String(json.palette_hex.length / 2)],
-  ];
+  const entries = converted.family === "fx"
+    ? [
+        ["Target", "fx-9860G"],
+        ["Resolved Format", converted.formatName],
+        ["Profile", String(converted.profile)],
+        ["Size", `${converted.width} x ${converted.height}`],
+        ["Layers", String(converted.layerCount)],
+        ["Color Count", String(converted.colorCount)],
+        ["Data Bytes", String(converted.data.length)],
+      ]
+    : (() => {
+        const json = toHexJson(converted);
+        return [
+          ["Target", "fx-CG 50"],
+          ["Resolved Format", converted.formatName],
+          ["Profile", String(json.profile)],
+          ["Color Count", String(json.color_count)],
+          ["Size", `${json.width} x ${json.height}`],
+          ["Stride", String(json.stride)],
+          ["Data Bytes", String(json.data_hex.length / 2)],
+          ["Palette Bytes", String(json.palette_hex.length / 2)],
+        ];
+      })();
 
   metaGrid.innerHTML = entries
     .map(([label, value]) => `<div class="meta-card"><span>${label}</span><strong>${value}</strong></div>`)
@@ -98,14 +117,21 @@ function refreshConversion() {
   }
 
   try {
-    const converted = convertImageDataToCg(state.imageData, formatSelect.value);
-    const decoded = decodeCgImage(converted);
     const imageName = sanitizeName(state.file.name);
-    const json = toHexJson(converted);
+    const isFxFormat = formatSelect.value === "fx:auto"
+      || formatSelect.value === "mono"
+      || formatSelect.value === "mono_alpha"
+      || formatSelect.value === "gray"
+      || formatSelect.value === "gray_alpha";
+    const converted = isFxFormat
+      ? convertImageDataToFx(state.imageData, formatSelect.value)
+      : convertImageDataToCg(state.imageData, formatSelect.value);
+    const decoded = isFxFormat ? decodeFxImage(converted) : decodeCgImage(converted);
+    const json = isFxFormat ? toFxImageHexJson(converted) : toHexJson(converted);
 
     state.converted = converted;
     state.jsonText = JSON.stringify(json, null, 2);
-    state.pythonText = toFxconvPy(converted, imageName);
+    state.pythonText = isFxFormat ? toFxImagePy(converted, imageName) : toFxconvPy(converted, imageName);
 
     renderImageDataToCanvas(convertedCanvas, decoded);
     updateMeta(converted);

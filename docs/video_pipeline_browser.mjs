@@ -26,7 +26,7 @@ function buildBaseVideoFilters(settings) {
 
 function buildPaletteFilterComplex(settings) {
   const base = buildBaseVideoFilters(settings).join(",");
-  const maxColors = settings.colorCount;
+  const maxColors = Number(settings.colorCount);
   const dither = settings.dither === "Floyd-Steinberg" ? "floyd_steinberg" : "none";
   return [
     `[0:v]${base}[pre]`,
@@ -38,6 +38,22 @@ function buildPaletteFilterComplex(settings) {
 
 export function buildVideoFilter(settings) {
   return buildBaseVideoFilters(settings).join(",");
+}
+
+function shouldUseFfmpegPalette(settings) {
+  if (settings.colorCount === "Original") {
+    return false;
+  }
+  const maxColors = Number(settings.colorCount);
+  return Number.isFinite(maxColors) && maxColors >= 4;
+}
+
+async function safeDeleteFile(ffmpeg, path) {
+  try {
+    await ffmpeg.deleteFile(path);
+  } catch {
+    // Ignore missing-file cleanup failures.
+  }
 }
 
 export async function createBrowserFFmpeg({ onLog, onProgress } = {}) {
@@ -60,8 +76,9 @@ export async function createBrowserFFmpeg({ onLog, onProgress } = {}) {
 }
 
 export async function extractRgbaFrames(ffmpeg, inputFile, settings) {
-  const inputName = `input${inputFile.name.match(/\.[^.]+$/)?.[0] || ".mp4"}`;
-  const outputName = "frames.rgba";
+  const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const inputName = `input_${runId}${inputFile.name.match(/\.[^.]+$/)?.[0] || ".mp4"}`;
+  const outputName = `frames_${runId}.rgba`;
   const args = ["-y"];
 
   if (settings.startTime) {
@@ -74,7 +91,8 @@ export async function extractRgbaFrames(ffmpeg, inputFile, settings) {
     args.push("-t", String(settings.duration));
   }
 
-  if (settings.colorCount === "Original") {
+  const useFfmpegPalette = shouldUseFfmpegPalette(settings);
+  if (!useFfmpegPalette) {
     args.push("-vf", buildVideoFilter(settings));
   } else {
     args.push("-filter_complex", buildPaletteFilterComplex(settings), "-map", "[out]");
@@ -82,9 +100,21 @@ export async function extractRgbaFrames(ffmpeg, inputFile, settings) {
 
   args.push("-an", "-sn", "-pix_fmt", "rgba", "-f", "rawvideo", outputName);
 
-  await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
-  await ffmpeg.exec(args);
-  const raw = await ffmpeg.readFile(outputName);
+  let raw;
+  try {
+    await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
+    await ffmpeg.exec(args);
+    raw = await ffmpeg.readFile(outputName);
+  } catch (error) {
+    throw new Error(error?.message || String(error));
+  } finally {
+    await safeDeleteFile(ffmpeg, inputName);
+    await safeDeleteFile(ffmpeg, outputName);
+  }
+
+  if (!raw) {
+    throw new Error("ffmpeg did not produce any frame data");
+  }
 
   const frameSize = settings.width * settings.height * 4;
   if (raw.length % frameSize !== 0) {
@@ -102,6 +132,7 @@ export async function extractRgbaFrames(ffmpeg, inputFile, settings) {
     outputName,
     inputName,
     ffmpegArgs: args,
+    usedFfmpegPalette: useFfmpegPalette,
   };
 }
 

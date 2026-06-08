@@ -158,6 +158,14 @@ def play_video(pak_file):
                 img = image(prof, cc, fw, fh, stride, img_data, palette)
                 draw_tiled_gint_image(img, offset_x, offset_y, fw, fh, tile_size=32)
 
+            elif toc_entry['type'] == 5:
+                # Type 5: Native fxconv --fx image payloads
+                prof, fw, fh, data_len = struct.unpack('<BHHI', binary_data[:9])
+                img_data = binary_data[9:9 + data_len]
+
+                img = fximage(prof, fw, fh, img_data)
+                draw_tiled_gint_image(img, offset_x, offset_y, fw, fh, tile_size=32)
+
         # --- OSD OVERLAYS (CRT-Style Play/Pause) ---
         if not playing or show_icon_timer > 0:
             if not playing:

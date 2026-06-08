@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>fxconv CG Browser Converter</title>
+  <title>fxconv Browser Converter</title>
   <style>
     :root {
       --bg: #f2efe7;
@@ -232,11 +232,12 @@
 </head>
 <body>
   <main>
-    <h1>fxconv CG Browser Converter</h1>
+    <h1>fxconv Browser Converter</h1>
     <p class="lede">
-      Drop a PNG, choose a format, preview the converted image, then download either Python output compatible with
-      <code>gint.image(...)</code> or a parseable hex JSON payload. Direct <code>rgb565</code> and <code>rgb565a</code>
-      match the local <code>fxconv.py</code> exactly; indexed modes use the bundled JavaScript quantizer.
+      Drop a PNG, choose either an <code>--cg</code> or <code>--fx</code> image profile, preview the converted image,
+      then download either Python output compatible with <code>gint.image(...)</code> or a parseable hex JSON payload.
+      The fx-CG path supports the existing RGB / indexed formats, and the fx-9860G path now exposes
+      <code>mono</code>, <code>mono_alpha</code>, <code>gray</code>, and <code>gray_alpha</code>.
     </p>
 
     <div class="grid">
@@ -251,15 +252,24 @@
           <div>
             <label for="formatSelect">Format</label>
             <select id="formatSelect">
-              <option value="">Auto (rgb565/rgb565a)</option>
-              <option value="rgb565">rgb565</option>
-              <option value="rgb565a">rgb565a</option>
-              <option value="p8">p8 (auto alpha)</option>
-              <option value="p8_rgb565">p8_rgb565</option>
-              <option value="p8_rgb565a">p8_rgb565a</option>
-              <option value="p4">p4 (auto alpha)</option>
-              <option value="p4_rgb565">p4_rgb565</option>
-              <option value="p4_rgb565a">p4_rgb565a</option>
+              <optgroup label="fx-CG 50">
+                <option value="">Auto (rgb565/rgb565a)</option>
+                <option value="rgb565">rgb565</option>
+                <option value="rgb565a">rgb565a</option>
+                <option value="p8">p8 (auto alpha)</option>
+                <option value="p8_rgb565">p8_rgb565</option>
+                <option value="p8_rgb565a">p8_rgb565a</option>
+                <option value="p4">p4 (auto alpha)</option>
+                <option value="p4_rgb565">p4_rgb565</option>
+                <option value="p4_rgb565a">p4_rgb565a</option>
+              </optgroup>
+              <optgroup label="fx-9860G">
+                <option value="fx:auto">Auto (mono/gray)</option>
+                <option value="mono">mono</option>
+                <option value="mono_alpha">mono_alpha</option>
+                <option value="gray">gray</option>
+                <option value="gray_alpha">gray_alpha</option>
+              </optgroup>
             </select>
           </div>
           <div>
