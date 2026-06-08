@@ -1,5 +1,4 @@
 import { packGintPayload } from "./fxconv_cg.mjs";
-import { packFxPayload, parseFxPayload } from "./fxconv_fx.mjs";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -10,7 +9,6 @@ export const GMPAK_ENTRY_TYPES = {
   SUBTITLE: 2,
   AUDIO: 3,
   VIDEO_GINT_IMAGE: 4,
-  VIDEO_FX_IMAGE: 5,
 };
 
 export const GMPAK_ENTRY_TYPE_NAMES = {
@@ -19,7 +17,6 @@ export const GMPAK_ENTRY_TYPE_NAMES = {
   2: "SUBTITLE",
   3: "AUDIO",
   4: "VIDEO_GINT_IMAGE",
-  5: "VIDEO_FX_IMAGE",
 };
 
 function writeUint16LE(target, offset, value) {
@@ -102,8 +99,8 @@ export function buildGmpak({ frames, fps = 15 }) {
     },
     ...normalized.frames.map((frame, index) => ({
       name: `FRM_${index.toString().padStart(4, "0")}`,
-      type: frame.family === "fx" ? GMPAK_ENTRY_TYPES.VIDEO_FX_IMAGE : GMPAK_ENTRY_TYPES.VIDEO_GINT_IMAGE,
-      payload: frame.family === "fx" ? packFxPayload(frame) : packGintPayload(frame),
+      type: frame.family === "cpqoi" ? GMPAK_ENTRY_TYPES.VIDEO_CPQOI : GMPAK_ENTRY_TYPES.VIDEO_GINT_IMAGE,
+      payload: frame.family === "cpqoi" ? frame.data : packGintPayload(frame),
     })),
   ];
 
@@ -251,14 +248,6 @@ export function parseGmpak(input) {
     } else if (type === GMPAK_ENTRY_TYPES.SUBTITLE) {
       entry.payloadKind = "subtitle";
       entry.text = textDecoder.decode(payload);
-    } else if (type === GMPAK_ENTRY_TYPES.VIDEO_FX_IMAGE) {
-      try {
-        const fx = parseFxPayload(payload);
-        entry.payloadKind = "fx";
-        entry.fx = fx;
-      } catch {
-        // Keep as opaque binary if it doesn't parse as an FX payload.
-      }
     } else if (type === GMPAK_ENTRY_TYPES.VIDEO_GINT_IMAGE) {
       try {
         const gint = parseGintPayload(payload);

@@ -1,6 +1,6 @@
 import { buildGmpakBlob } from "./gmpak_browser.mjs";
 import { convertImageDataToCg, decodeCgImage, reduceImageDataColors, toHexJson } from "./fxconv_cg.mjs";
-import { convertImageDataToFx, decodeFxImage, isFxFormatName, toFxImageHexJson } from "./fxconv_fx.mjs";
+import { decodeCpqoiFrame, encodeCpqoiFrame } from "./cpqoi_browser.mjs";
 import { createBrowserFFmpeg, extractRgbaFrames, frameViewFromRaw } from "./video_pipeline_browser.mjs";
 
 const dropzone = document.getElementById("dropzone");
@@ -65,6 +65,10 @@ function currentSettings() {
 
 function ditherModeValue(setting) {
   return setting === "Floyd-Steinberg" ? "floyd_steinberg" : "none";
+}
+
+function isCpqoiFormat(formatName) {
+  return formatName === "cpqoi";
 }
 
 function updateFacts(entries = []) {
@@ -165,21 +169,24 @@ async function buildGmpakFromVideo() {
       && Number.isFinite(jsColorReductionCount)
       && jsColorReductionCount >= 1
       && jsColorReductionCount <= 3;
-    const useFxFormat = isFxFormatName(settings.formatName);
-
+    const useCpqoi = isCpqoiFormat(settings.formatName);
+    let previousCpqoi565 = null;
     for (let index = 0; index < extraction.frameCount; index += 1) {
       let view = frameViewFromRaw(extraction.rawFrames, index, extraction.width, extraction.height);
       if (useJsColorReduction) {
         view = reduceImageDataColors(view, jsColorReductionCount, ditherModeValue(settings.dither));
       }
 
-      const converted = useFxFormat
-        ? convertImageDataToFx(view, settings.formatName)
+      const converted = useCpqoi
+        ? encodeCpqoiFrame(view, previousCpqoi565)
         : convertImageDataToCg(view, settings.formatName);
       frames.push(converted);
+      if (useCpqoi) {
+        previousCpqoi565 = converted.pixels565;
+      }
 
       if (index === 0) {
-        renderImageDataToCanvas(framePreview, useFxFormat ? decodeFxImage(converted) : decodeCgImage(converted));
+        renderImageDataToCanvas(framePreview, useCpqoi ? decodeCpqoiFrame(converted.data) : decodeCgImage(converted));
       }
 
       const progress = 40 + ((index + 1) / extraction.frameCount) * 45;
@@ -193,7 +200,9 @@ async function buildGmpakFromVideo() {
     const blob = buildGmpakBlob({ frames, fps: settings.fps });
     state.downloadBlob = URL.createObjectURL(blob);
 
-    const firstFrameJson = useFxFormat ? toFxImageHexJson(frames[0]) : toHexJson(frames[0]);
+    const firstFrameMeta = useCpqoi
+      ? { bytes: frames[0].data.length, width: frames[0].width, height: frames[0].height }
+      : toHexJson(frames[0]);
     state.manifest = {
       output_name: `${settings.outputName}.gmpak`,
       fps: settings.fps,
@@ -201,10 +210,11 @@ async function buildGmpakFromVideo() {
       width: extraction.width,
       height: extraction.height,
       format: frames[0].formatName,
-      profile: firstFrameJson.profile,
-      first_frame_color_count: firstFrameJson.color_count ?? null,
-      first_frame_stride: firstFrameJson.stride ?? null,
-      first_frame_layer_count: firstFrameJson.layer_count ?? null,
+      entry_type: useCpqoi ? "VIDEO_CPQOI" : "VIDEO_GINT_IMAGE",
+      profile: useCpqoi ? null : firstFrameMeta.profile,
+      first_frame_color_count: useCpqoi ? null : firstFrameMeta.color_count,
+      first_frame_stride: useCpqoi ? null : firstFrameMeta.stride,
+      first_frame_bytes: useCpqoi ? firstFrameMeta.bytes : null,
       gmpak_bytes: blob.size,
       pre_fx_color_count: settings.colorCount,
       pre_fx_dither: settings.dither,
@@ -221,7 +231,7 @@ async function buildGmpakFromVideo() {
       ["Format", frames[0].formatName],
       ["Pre-FX Colors", String(settings.colorCount)],
       ["GMPAK Size", `${blob.size.toLocaleString()} bytes`],
-      [useFxFormat ? "First Layers" : "First Stride", String(useFxFormat ? (firstFrameJson.layer_count ?? "n/a") : (firstFrameJson.stride ?? "n/a"))],
+      [useCpqoi ? "First Payload" : "First Stride", String(useCpqoi ? firstFrameMeta.bytes : firstFrameMeta.stride)],
     ]);
 
     setProgress(100);
