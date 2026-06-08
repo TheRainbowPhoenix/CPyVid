@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fxconv CG Browser Converter</title>
+  <style>
+    :root {
+      --bg: #f2efe7;
+      --panel: #fffaf0;
+      --ink: #1c1a17;
+      --muted: #5d554a;
+      --line: #d7c9ab;
+      --accent: #b14d21;
+      --accent-2: #245a8d;
+      --error: #8f1f1f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(177, 77, 33, 0.15), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(36, 90, 141, 0.12), transparent 28%),
+        linear-gradient(180deg, #f8f5ee 0%, var(--bg) 100%);
+      min-height: 100vh;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      letter-spacing: 0.02em;
+    }
+
+    .lede {
+      max-width: 72ch;
+      color: var(--muted);
+      margin: 0 0 24px;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--panel) 90%, white);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 14px 36px rgba(50, 37, 20, 0.08);
+    }
+
+    .dropzone {
+      border: 2px dashed color-mix(in srgb, var(--accent) 60%, var(--line));
+      border-radius: 16px;
+      padding: 26px 18px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,250,240,0.96));
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+      cursor: pointer;
+    }
+
+    .dropzone.dragover {
+      transform: translateY(-2px);
+      border-color: var(--accent-2);
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(231, 240, 250, 0.96));
+    }
+
+    .dropzone strong {
+      display: block;
+      font-size: 1.3rem;
+      margin-bottom: 6px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-top: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+
+    select,
+    button,
+    textarea {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      font: inherit;
+    }
+
+    select,
+    button {
+      min-height: 44px;
+      padding: 10px 12px;
+      background: white;
+      color: var(--ink);
+    }
+
+    button {
+      cursor: pointer;
+      border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+    }
+
+    button.primary {
+      background: linear-gradient(180deg, #d96c38 0%, var(--accent) 100%);
+      color: white;
+      border-color: transparent;
+    }
+
+    button.secondary {
+      background: linear-gradient(180deg, #e7eff8 0%, #d6e2f0 100%);
+      color: #17324f;
+      border-color: transparent;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .meta {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      margin-top: 16px;
+    }
+
+    .meta-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.7);
+    }
+
+    .meta-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+    }
+
+    .previews {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      margin-top: 16px;
+    }
+
+    .preview {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,0.75);
+    }
+
+    .preview h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      max-height: 340px;
+      border-radius: 10px;
+      background:
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+        linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 10px 10px;
+      image-rendering: pixelated;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    textarea {
+      min-height: 220px;
+      padding: 12px;
+      resize: vertical;
+      background: #fffdfa;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.86rem;
+      line-height: 1.35;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 22px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--error);
+    }
+
+    .file-line {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 960px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>fxconv CG Browser Converter</h1>
+    <p class="lede">
+      Drop a PNG, choose a format, preview the converted image, then download either Python output compatible with
+      <code>gint.image(...)</code> or a parseable hex JSON payload. Direct <code>rgb565</code> and <code>rgb565a</code>
+      match the local <code>fxconv.py</code> exactly; indexed modes use the bundled JavaScript quantizer.
+    </p>
+
+    <div class="grid">
+      <section class="panel">
+        <div id="dropzone" class="dropzone" tabindex="0">
+          <strong>Drop your image to convert it</strong>
+          <span>or click here to choose a file</span>
+        </div>
+        <input id="fileInput" type="file" accept="image/png,image/*" hidden>
+
+        <div class="controls">
+          <div>
+            <label for="formatSelect">Format</label>
+            <select id="formatSelect">
+              <option value="">Auto (rgb565/rgb565a)</option>
+              <option value="rgb565">rgb565</option>
+              <option value="rgb565a">rgb565a</option>
+              <option value="p8">p8 (auto alpha)</option>
+              <option value="p8_rgb565">p8_rgb565</option>
+              <option value="p8_rgb565a">p8_rgb565a</option>
+              <option value="p4">p4 (auto alpha)</option>
+              <option value="p4_rgb565">p4_rgb565</option>
+              <option value="p4_rgb565a">p4_rgb565a</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="downloadPy" class="primary" disabled>Download Python</button>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="downloadJson" class="secondary" disabled>Download Hex JSON</button>
+          </div>
+        </div>
+
+        <div class="file-line" id="fileLine">No image loaded.</div>
+        <div class="meta" id="metaGrid"></div>
+        <div class="status" id="status"></div>
+
+        <div class="previews">
+          <article class="preview">
+            <h2>Original</h2>
+            <canvas id="originalCanvas"></canvas>
+          </article>
+          <article class="preview">
+            <h2>Converted Preview</h2>
+            <canvas id="convertedCanvas"></canvas>
+          </article>
+        </div>
+      </section>
+
+      <section class="stack">
+        <article class="panel">
+          <h2 style="margin-top:0">Hex JSON</h2>
+          <textarea id="jsonOutput" readonly></textarea>
+        </article>
+        <article class="panel">
+          <h2 style="margin-top:0">Generated Python</h2>
+          <textarea id="pythonOutput" readonly></textarea>
+        </article>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="./fxconv_browser_app.mjs"></script>
+</body>
+</html>
