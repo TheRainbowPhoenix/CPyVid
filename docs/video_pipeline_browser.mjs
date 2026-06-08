@@ -1,7 +1,8 @@
 import { FFmpeg } from "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js";
 import { fetchFile, toBlobURL } from "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js";
 
-const FFMPEG_CORE_BASE_URL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+const FFMPEG_CORE_BASE_URL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+const CLASS_WORKER_URL = new URL("./ffmpeg_wasm_worker.js", import.meta.url).href;
 
 function buildResizeFilter(settings) {
   const { width, height, resizeMode } = settings;
@@ -14,14 +15,29 @@ function buildResizeFilter(settings) {
   return `scale=${width}:${height}`;
 }
 
-export function buildVideoFilter(settings) {
+function buildBaseVideoFilters(settings) {
   const filters = [buildResizeFilter(settings)];
   if (settings.visualStyle === "grayscale") {
     filters.push("format=gray");
-    filters.push("format=rgba");
   }
   filters.push(`fps=${settings.fps}`);
-  return filters.join(",");
+  return filters;
+}
+
+function buildPaletteFilterComplex(settings) {
+  const base = buildBaseVideoFilters(settings).join(",");
+  const maxColors = settings.colorCount;
+  const dither = settings.dither === "Floyd-Steinberg" ? "floyd_steinberg" : "none";
+  return [
+    `[0:v]${base}[pre]`,
+    "[pre]split[a][b]",
+    `[a]palettegen=max_colors=${maxColors}:reserve_transparent=0[pal]`,
+    `[b][pal]paletteuse=dither=${dither}[out]`,
+  ].join(";");
+}
+
+export function buildVideoFilter(settings) {
+  return buildBaseVideoFilters(settings).join(",");
 }
 
 export async function createBrowserFFmpeg({ onLog, onProgress } = {}) {
@@ -34,8 +50,10 @@ export async function createBrowserFFmpeg({ onLog, onProgress } = {}) {
   }
 
   await ffmpeg.load({
+    classWorkerURL: CLASS_WORKER_URL,
     coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, "application/wasm"),
+    workerURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.worker.js`, "text/javascript"),
   });
 
   return ffmpeg;
@@ -56,17 +74,13 @@ export async function extractRgbaFrames(ffmpeg, inputFile, settings) {
     args.push("-t", String(settings.duration));
   }
 
-  args.push(
-    "-vf",
-    buildVideoFilter(settings),
-    "-an",
-    "-sn",
-    "-pix_fmt",
-    "rgba",
-    "-f",
-    "rawvideo",
-    outputName
-  );
+  if (settings.colorCount === "Original") {
+    args.push("-vf", buildVideoFilter(settings));
+  } else {
+    args.push("-filter_complex", buildPaletteFilterComplex(settings), "-map", "[out]");
+  }
+
+  args.push("-an", "-sn", "-pix_fmt", "rgba", "-f", "rawvideo", outputName);
 
   await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
   await ffmpeg.exec(args);

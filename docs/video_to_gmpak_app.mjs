@@ -11,9 +11,10 @@ const widthInput = document.getElementById("widthInput");
 const heightInput = document.getElementById("heightInput");
 const resizeModeSelect = document.getElementById("resizeMode");
 const visualStyleSelect = document.getElementById("visualStyle");
+const colorCountSelect = document.getElementById("colorCount");
+const ditherSelect = document.getElementById("ditherSelect");
 const startTimeInput = document.getElementById("startTime");
 const durationInput = document.getElementById("duration");
-const loadCoreButton = document.getElementById("loadCoreBtn");
 const buildButton = document.getElementById("buildBtn");
 const downloadButton = document.getElementById("downloadBtn");
 const statusEl = document.getElementById("status");
@@ -48,9 +49,11 @@ function currentSettings() {
   return {
     width: Math.max(1, Math.min(528, Number.parseInt(widthInput.value, 10) || 320)),
     height: Math.max(1, Math.min(528, Number.parseInt(heightInput.value, 10) || 528)),
-    fps: Math.max(1, Math.min(60, Number.parseInt(fpsInput.value, 10) || 10)),
+    fps: Math.max(1, Math.min(20, Number.parseInt(fpsInput.value, 10) || 2)),
     resizeMode: resizeModeSelect.value,
     visualStyle: visualStyleSelect.value,
+    colorCount: colorCountSelect.value,
+    dither: ditherSelect.value,
     startTime: Math.max(0, Number.parseFloat(startTimeInput.value) || 0),
     duration: Math.max(0, Number.parseFloat(durationInput.value) || 0),
     formatName: formatSelect.value,
@@ -95,7 +98,6 @@ async function ensureFfmpegLoaded() {
     return state.ffmpeg;
   }
 
-  loadCoreButton.disabled = true;
   setStatus("Loading ffmpeg.wasm core (~31 MB)...");
   setProgress(2);
 
@@ -185,6 +187,9 @@ async function buildGmpakFromVideo() {
       first_frame_color_count: firstFrameJson.color_count,
       first_frame_stride: firstFrameJson.stride,
       gmpak_bytes: blob.size,
+      pre_fx_color_count: settings.colorCount,
+      pre_fx_dither: settings.dither,
+      visual_style: settings.visualStyle,
       ffmpeg_args: extraction.ffmpegArgs,
     };
 
@@ -194,6 +199,7 @@ async function buildGmpakFromVideo() {
       ["Frames", String(frames.length)],
       ["Frame Size", `${extraction.width} x ${extraction.height}`],
       ["Format", frames[0].formatName],
+      ["Pre-FX Colors", String(settings.colorCount)],
       ["GMPAK Size", `${blob.size.toLocaleString()} bytes`],
       ["First Stride", String(firstFrameJson.stride)],
     ]);
@@ -245,16 +251,6 @@ fileInput.addEventListener("change", async (event) => {
   }
 });
 
-loadCoreButton.addEventListener("click", async () => {
-  try {
-    await ensureFfmpegLoaded();
-  } catch (error) {
-    loadCoreButton.disabled = false;
-    setStatus(error.message || String(error), true);
-    setProgress(0);
-  }
-});
-
 buildButton.addEventListener("click", buildGmpakFromVideo);
 
 downloadButton.addEventListener("click", () => {
@@ -269,3 +265,7 @@ downloadButton.addEventListener("click", () => {
 
 clearFramePreview();
 updateFacts();
+ensureFfmpegLoaded().catch((error) => {
+  setStatus(error.message || String(error), true);
+  setProgress(0);
+});
